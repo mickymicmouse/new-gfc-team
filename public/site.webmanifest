@@ -1,0 +1,17 @@
+{
+  "name": "GFC 팀 편성",
+  "short_name": "GFC",
+  "description": "GFC 풋살 출석 및 자동 팀 편성",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080a09",
+  "theme_color": "#0b3d2e",
+  "icons": [
+    {
+      "src": "/gfc-crest.jpg",
+      "sizes": "1536x1536",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
