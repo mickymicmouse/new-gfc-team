@@ -36,7 +36,10 @@ export function AdminLogin({ onClose, onUnlock }: AdminLoginProps) {
           <button className="icon-button" type="button" onClick={onClose} aria-label="닫기"><X size={20} /></button>
         </header>
         <form onSubmit={submit}>
-          <p className="admin-help">선수 정보 수정과 편성 확정은 관리자만 가능합니다. PIN은 이 브라우저에 저장되지 않습니다.</p>
+          <p className="admin-help">
+            선수 정보 수정과 편성 확정은 관리자만 가능합니다. PIN은 브라우저에 저장되지 않습니다.<br />
+            관리자 PIN을 모르시는 경우 웹 담당자(이승준)에게 문의해 주세요.
+          </p>
           <label className="pin-field">
             <span>관리자 PIN</span>
             <div>
