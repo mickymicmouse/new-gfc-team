@@ -27,7 +27,7 @@ import { GuestForm } from './components/GuestForm'
 import { PlayerForm, type PlayerFormValue } from './components/PlayerForm'
 import { addPlayer, deleteMatch, fetchMatchByDate, fetchPlayers, saveMatch, setPlayerActive, updatePlayer, verifyAdminPin } from './lib/api'
 import { isSupabaseConfigured } from './lib/supabase'
-import { createBalancedTeams, getTeamMetrics } from './lib/teamBalancer'
+import { createBalancedTeams, getTeamMetrics, normalizeRotationOrders, reorderTeamMember } from './lib/teamBalancer'
 import {
   ABILITIES,
   ABILITY_LABELS,
@@ -246,15 +246,24 @@ function App() {
 
   const changeManualTeam = (id: string, team: number) => {
     setAssignments((current) =>
-      current.map((assignment) =>
-        assignment.participant.id === id ? { ...assignment, team } : assignment,
-      ),
+      normalizeRotationOrders(current.map((assignment) =>
+        assignment.participant.id === id
+          ? { ...assignment, team, rotationOrder: Number.MAX_SAFE_INTEGER }
+          : assignment,
+      )),
     )
     setDraft((current) => ({ ...current, status: 'draft' }))
   }
 
+  const changeRotationOrder = (id: string, rotationOrder: number) => {
+    setAssignments((current) => reorderTeamMember(current, id, rotationOrder))
+    setDraft((current) => ({ ...current, status: 'draft' }))
+  }
+
   const resetManualTeams = () => {
-    setAssignments((current) => current.map((assignment) => ({ ...assignment, team: assignment.autoTeam })))
+    setAssignments((current) => normalizeRotationOrders(
+      current.map((assignment) => ({ ...assignment, team: assignment.autoTeam })),
+    ))
   }
 
   const confirmTeams = async () => {
@@ -388,6 +397,7 @@ function App() {
             onDraftChange={(next) => { setDraft(next); setAssignments([]) }}
             onGenerate={generateTeams}
             onChangeTeam={changeManualTeam}
+            onChangeRotationOrder={changeRotationOrder}
             onResetManual={resetManualTeams}
             onConfirm={confirmTeams}
             onDelete={deleteSavedMatch}
@@ -499,8 +509,8 @@ function SavedTeamPreview({ assignments, teamCount, isSaved, onViewTeams }: { as
     <div className={`saved-team-grid saved-team-grid--${teamCount}`}>
       {Array.from({ length: teamCount }, (_, index) => {
         const team = index + 1
-        const members = assignments.filter((assignment) => assignment.team === team)
-        return <article className={`saved-team saved-team--${team}`} key={team}><header><span>TEAM {team}</span><strong>{TEAM_NAMES[index]}</strong><em>{members.length}명</em></header><div>{members.map(({ participant }) => <span key={participant.id}><b>{participant.jersey_number ?? (isGuest(participant) ? 'G' : '–')}</b>{participant.name}</span>)}</div></article>
+        const members = assignments.filter((assignment) => assignment.team === team).sort((left, right) => left.rotationOrder - right.rotationOrder)
+        return <article className={`saved-team saved-team--${team}`} key={team}><header><span>TEAM {team}</span><strong>{TEAM_NAMES[index]}</strong><em>{members.length}명</em></header><div>{members.map(({ participant, rotationOrder }) => <span key={participant.id}><b>{String.fromCharCode(64 + team)}{rotationOrder}</b>{participant.name}</span>)}</div></article>
       })}
     </div>
   </section>
@@ -515,6 +525,7 @@ interface TeamsViewProps {
   onDraftChange: (draft: MatchDraft) => void
   onGenerate: () => void
   onChangeTeam: (id: string, team: number) => void
+  onChangeRotationOrder: (id: string, rotationOrder: number) => void
   onResetManual: () => void
   onConfirm: () => void
   onDelete: () => void
@@ -527,7 +538,7 @@ function TeamsView(props: TeamsViewProps) {
   const manualCount = assignments.filter(({ team, autoTeam }) => team !== autoTeam).length
   const setOptions = (options: MatchDraft['options']) => props.onDraftChange({ ...draft, options, status: 'draft' })
   return <>
-    <PageHeader eyebrow="TEAM BALANCER" title="팀 편성" description="편성 기준을 선택하고, 결과를 확인한 뒤 필요한 선수만 옮기세요." />
+    <PageHeader eyebrow="TEAM BALANCER" title="팀 편성" description="편성 결과를 확인하고 팀과 로테이션 순서를 조정하세요." />
     <section className="control-panel">
       <div className="control-group"><span className="control-label">팀 개수</span><div className="segmented">{([2, 3] as const).map((count) => <button className={draft.options.teamCount === count ? 'active' : ''} key={count} onClick={() => setOptions({ ...draft.options, teamCount: count })}>{count}팀</button>)}</div></div>
       <div className="control-group control-group--wide"><span className="control-label">편성 기준</span><div className="mode-options"><button className={draft.options.balanceMode === 'overall' ? 'mode-card mode-card--active' : 'mode-card'} onClick={() => setOptions({ ...draft.options, balanceMode: 'overall' })}><ShieldCheck size={19} /><span><strong>종합 균형</strong><small>5개 능력치 전체</small></span></button><button className={draft.options.balanceMode === 'specific' ? 'mode-card mode-card--active' : 'mode-card'} onClick={() => setOptions({ ...draft.options, balanceMode: 'specific' })}><Sparkles size={19} /><span><strong>특정 능력</strong><small>선택 능력치 우선</small></span></button><button className={draft.options.balanceMode === 'random' ? 'mode-card mode-card--active' : 'mode-card'} onClick={() => setOptions({ ...draft.options, balanceMode: 'random' })}><Dices size={19} /><span><strong>랜덤</strong><small>순수 무작위</small></span></button></div></div>
@@ -538,11 +549,11 @@ function TeamsView(props: TeamsViewProps) {
     {participants.length < draft.options.teamCount * 2 ? <div className="empty-state"><Users size={32} /><h2>참석 인원이 부족해요</h2><p>{draft.options.teamCount}팀은 최소 {draft.options.teamCount * 2}명이 필요합니다. 현재 {participants.length}명이 선택됐어요.</p><button className="button button--outline" onClick={props.onBack}>참석자 선택으로</button></div> : assignments.length === 0 ? <div className="empty-state empty-state--pitch"><Dices size={34} /><h2>편성 준비 완료</h2><p>{participants.length}명을 {draft.options.teamCount}개 팀으로 나눕니다.<br />위 옵션을 확인하고 자동 편성을 눌러주세요.</p><button className="button button--primary" onClick={props.onGenerate}><Sparkles size={17} /> 자동 편성 시작</button></div> : <>
       <div className="result-heading"><div><p className="eyebrow">BALANCED RESULT</p><h2>편성 결과 <span>{participants.length}명</span></h2></div>{manualCount > 0 && <button className="button button--small button--ghost" onClick={props.onResetManual}><RotateCcw size={15} /> 수동 조정 {manualCount}건 취소</button>}</div>
       <section className={`teams-grid teams-grid--${draft.options.teamCount}`}>{metrics.map((metric, index) => {
-        const teamAssignments = assignments.filter(({ team }) => team === metric.team)
+        const teamAssignments = assignments.filter(({ team }) => team === metric.team).sort((left, right) => left.rotationOrder - right.rotationOrder)
         return <article className={`team-card team-card--${index + 1}`} key={metric.team}>
           <header className="team-card__header"><div><span>TEAM {metric.team}</span><h3>{TEAM_NAMES[index]}</h3></div><div className="team-score"><small>팀 종합</small><strong>{metric.overall.toFixed(2)}</strong></div></header>
           <div className="metric-strip">{ABILITIES.map((ability) => <span key={ability}><small>{ABILITY_LABELS[ability]}</small><strong>{metric.averages[ability].toFixed(1)}</strong></span>)}</div>
-          <div className="team-roster">{teamAssignments.map(({ participant, autoTeam, team }) => <div className={team !== autoTeam ? 'team-player team-player--manual' : 'team-player'} key={participant.id}><span className="jersey-badge">{participant.jersey_number ?? (isGuest(participant) ? 'G' : '–')}</span><div className="team-player__info"><strong>{participant.name}{isGuest(participant) && <em>GUEST</em>}</strong><small>종합 {overallScore(participant).toFixed(1)}{team !== autoTeam && ' · 수동 이동'}</small></div><label className="team-select" aria-label={`${participant.name} 팀 변경`}><select value={team} onChange={(event) => props.onChangeTeam(participant.id, Number(event.target.value))}>{Array.from({ length: draft.options.teamCount }, (_, teamIndex) => <option value={teamIndex + 1} key={teamIndex + 1}>T{teamIndex + 1}</option>)}</select></label></div>)}</div>
+          <div className="team-roster">{teamAssignments.map(({ participant, autoTeam, team, rotationOrder }) => <div className={team !== autoTeam ? 'team-player team-player--manual' : 'team-player'} key={participant.id}><span className="rotation-badge">{String.fromCharCode(64 + team)}{rotationOrder}</span><div className="team-player__info"><strong>{participant.name}{isGuest(participant) && <em>GUEST</em>}</strong><small>{participant.jersey_number !== null ? `등번호 ${participant.jersey_number} · ` : ''}종합 {overallScore(participant).toFixed(1)}{team !== autoTeam && ' · 수동 이동'}</small></div><div className="assignment-controls"><label aria-label={`${participant.name} 팀 변경`}><span>팀</span><select value={team} onChange={(event) => props.onChangeTeam(participant.id, Number(event.target.value))}>{Array.from({ length: draft.options.teamCount }, (_, teamIndex) => <option value={teamIndex + 1} key={teamIndex + 1}>{String.fromCharCode(65 + teamIndex)}</option>)}</select></label><label aria-label={`${participant.name} 로테이션 순서 변경`}><span>순서</span><select value={rotationOrder} onChange={(event) => props.onChangeRotationOrder(participant.id, Number(event.target.value))}>{teamAssignments.map((_, orderIndex) => <option value={orderIndex + 1} key={orderIndex + 1}>{orderIndex + 1}</option>)}</select></label></div></div>)}</div>
           <footer>{metric.size} PLAYERS</footer>
         </article>
       })}</section>

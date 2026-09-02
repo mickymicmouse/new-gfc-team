@@ -73,6 +73,7 @@ interface StoredMatchPlayerRow {
   attending: boolean
   assigned_team: number | null
   manual_team: number | null
+  rotation_order: number | null
   player: Player | Player[] | null
 }
 
@@ -127,6 +128,7 @@ export const mapStoredMatch = (match: StoredMatchRow): StoredMatchState => {
       participant,
       autoTeam: row.assigned_team,
       team: row.manual_team ?? row.assigned_team,
+      rotationOrder: row.rotation_order ?? 1,
     }]
   })
 
@@ -174,6 +176,7 @@ export const fetchMatchByDate = async (matchDate: string) => {
         attending,
         assigned_team,
         manual_team,
+        rotation_order,
         player:players (
           id,
           name,
@@ -268,6 +271,7 @@ export const saveMatch = async ({
         assigned_team: assignment?.autoTeam ?? null,
         manual_team:
           assignment && assignment.team !== assignment.autoTeam ? assignment.team : null,
+        rotation_order: assignment?.rotationOrder ?? null,
       }
     }),
     ...guests.map((guest) => {
@@ -286,6 +290,7 @@ export const saveMatch = async ({
         assigned_team: assignment?.autoTeam ?? null,
         manual_team:
           assignment && assignment.team !== assignment.autoTeam ? assignment.team : null,
+        rotation_order: assignment?.rotationOrder ?? null,
       }
     }),
   ]

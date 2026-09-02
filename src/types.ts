@@ -49,6 +49,7 @@ export interface TeamAssignment {
   participant: Participant
   team: number
   autoTeam: number
+  rotationOrder: number
 }
 
 export interface MatchDraft {

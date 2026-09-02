@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Participant, TeamOptions } from '../types'
-import { createBalancedTeams, getTeamMetrics } from './teamBalancer'
+import { createBalancedTeams, getTeamMetrics, reorderTeamMember } from './teamBalancer'
 
 const participants: Participant[] = Array.from({ length: 17 }, (_, index) => ({
   id: String(index),
@@ -54,5 +54,23 @@ describe('createBalancedTeams', () => {
     const defenseAverages = getTeamMetrics(result, 2).map(({ averages }) => averages.defense)
 
     expect(defenseAverages.sort()).toEqual([2.8, 4.1])
+  })
+
+  it('numbers each team rotation from one without gaps', () => {
+    const result = createBalancedTeams(participants, options)
+
+    for (let team = 1; team <= options.teamCount; team += 1) {
+      expect(result.filter((assignment) => assignment.team === team).map(({ rotationOrder }) => rotationOrder))
+        .toEqual(Array.from({ length: result.filter((assignment) => assignment.team === team).length }, (_, index) => index + 1))
+    }
+  })
+
+  it('moves a player to a new rotation position and shifts the others', () => {
+    const result = createBalancedTeams(participants.slice(0, 6), { ...options, teamCount: 2 })
+    const team = result.filter((assignment) => assignment.team === 1)
+    const moved = reorderTeamMember(result, team[2].participant.id, 1)
+
+    expect(moved.filter((assignment) => assignment.team === 1).sort((left, right) => left.rotationOrder - right.rotationOrder)[0].participant.id)
+      .toBe(team[2].participant.id)
   })
 })

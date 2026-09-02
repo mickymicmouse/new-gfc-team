@@ -82,8 +82,49 @@ const imbalanceCost = (assignments: TeamAssignment[], options: TeamOptions) => {
 const randomAssignment = (participants: Participant[], options: TeamOptions) =>
   shuffle(participants, options.seed).map((participant, index) => {
     const team = (index % options.teamCount) + 1
-    return { participant, team, autoTeam: team }
+    return { participant, team, autoTeam: team, rotationOrder: Math.floor(index / options.teamCount) + 1 }
   })
+
+export const normalizeRotationOrders = (assignments: TeamAssignment[]) => {
+  const counters = new Map<number, number>()
+  return [...assignments]
+    .sort((left, right) =>
+      left.team - right.team
+      || left.rotationOrder - right.rotationOrder
+      || left.participant.name.localeCompare(right.participant.name, 'ko'),
+    )
+    .map((assignment) => {
+      const rotationOrder = (counters.get(assignment.team) ?? 0) + 1
+      counters.set(assignment.team, rotationOrder)
+      return { ...assignment, rotationOrder }
+    })
+}
+
+export const reorderTeamMember = (
+  assignments: TeamAssignment[],
+  participantId: string,
+  nextOrder: number,
+) => {
+  const target = assignments.find(({ participant }) => participant.id === participantId)
+  if (!target) return assignments
+
+  const teamMembers = assignments
+    .filter(({ team }) => team === target.team)
+    .sort((left, right) => left.rotationOrder - right.rotationOrder)
+  const currentIndex = teamMembers.findIndex(({ participant }) => participant.id === participantId)
+  if (currentIndex < 0) return assignments
+
+  const [moved] = teamMembers.splice(currentIndex, 1)
+  const boundedIndex = Math.min(Math.max(nextOrder - 1, 0), teamMembers.length)
+  teamMembers.splice(boundedIndex, 0, moved)
+  const orderById = new Map(teamMembers.map((assignment, index) => [assignment.participant.id, index + 1]))
+
+  return assignments.map((assignment) =>
+    assignment.team === target.team
+      ? { ...assignment, rotationOrder: orderById.get(assignment.participant.id) ?? assignment.rotationOrder }
+      : assignment,
+  )
+}
 
 export const createBalancedTeams = (
   participants: Participant[],
@@ -109,7 +150,12 @@ export const createBalancedTeams = (
       const sizes = teamSizes(assignments, options.teamCount)
       if (sizes[team - 1] >= maximumSize) continue
 
-      const candidate = [...assignments, { participant, team, autoTeam: team }]
+      const candidate = [...assignments, {
+        participant,
+        team,
+        autoTeam: team,
+        rotationOrder: sizes[team - 1] + 1,
+      }]
       const cost = imbalanceCost(candidate, options) + random() * 0.001
       if (cost < bestCost) {
         bestCost = cost
@@ -117,7 +163,12 @@ export const createBalancedTeams = (
       }
     }
 
-    assignments.push({ participant, team: bestTeam, autoTeam: bestTeam })
+    assignments.push({
+      participant,
+      team: bestTeam,
+      autoTeam: bestTeam,
+      rotationOrder: assignments.filter(({ team }) => team === bestTeam).length + 1,
+    })
   })
 
   let best = assignments
@@ -145,5 +196,7 @@ export const createBalancedTeams = (
     if (!improved) break
   }
 
-  return best.map((assignment) => ({ ...assignment, autoTeam: assignment.team }))
+  return normalizeRotationOrders(
+    best.map((assignment) => ({ ...assignment, autoTeam: assignment.team })),
+  )
 }

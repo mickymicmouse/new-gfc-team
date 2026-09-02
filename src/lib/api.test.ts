@@ -3,7 +3,7 @@ import { mapStoredMatch, type StoredMatchRow } from './api'
 
 const player = {
   id: 'player-1',
-  name: '이승준',
+  name: '테스트 선수',
   jersey_number: 11,
   defense: 4,
   passing: 4,
@@ -38,6 +38,7 @@ describe('mapStoredMatch', () => {
           attending: true,
           assigned_team: 1,
           manual_team: 2,
+          rotation_order: 1,
           player,
         },
         {
@@ -53,6 +54,7 @@ describe('mapStoredMatch', () => {
           attending: true,
           assigned_team: 1,
           manual_team: null,
+          rotation_order: 2,
           player: null,
         },
       ],
@@ -63,9 +65,9 @@ describe('mapStoredMatch', () => {
     expect(result.draft).toMatchObject({ id: 'match-1', matchDate: '2026-09-01', status: 'confirmed' })
     expect([...result.attendingIds]).toEqual(['player-1'])
     expect(result.guests).toHaveLength(1)
-    expect(result.assignments.map(({ participant, autoTeam, team }) => [participant.name, autoTeam, team])).toEqual([
-      ['이승준', 1, 2],
-      ['게스트', 1, 1],
+    expect(result.assignments.map(({ participant, autoTeam, team, rotationOrder }) => [participant.name, autoTeam, team, rotationOrder])).toEqual([
+      ['테스트 선수', 1, 2, 1],
+      ['게스트', 1, 1, 2],
     ])
   })
 })
