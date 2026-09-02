@@ -66,6 +66,8 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .button--primary:hover:not(:disabled) { background: var(--green-800); box-shadow: 0 10px 25px rgba(11,61,46,.22); }
 .button--outline { color: var(--green-900); background: #fff; border-color: #cbd6cf; }
 .button--ghost { color: #66736c; background: #eef0ec; }
+.button--danger { color: #b84d42; background: #fff; border-color: #e9c4bf; }
+.button--danger:hover:not(:disabled) { color: #a83e34; background: #fff3f1; border-color: #dda9a2; }
 .button--small { min-height: 37px; padding: 0 13px; font-size: 12px; }
 .button--large { min-height: 51px; padding: 0 24px; border-radius: 13px; }
 .icon-button { width: 37px; height: 37px; padding: 0; display: inline-grid; place-items: center; border: 1px solid var(--border); border-radius: 10px; color: #607068; background: #fff; }
@@ -222,6 +224,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .confirm-bar strong, .confirm-bar small { display: block; }
 .confirm-bar strong { color: #304039; font-size: 11px; }
 .confirm-bar small { margin-top: 4px; color: #88948d; font-size: 9px; }
+.confirm-actions { display: flex; align-items: center; gap: 8px; }
 
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .stat-grid article { min-height: 99px; padding: 18px 20px; display: flex; align-items: center; gap: 14px; border: 1px solid var(--border); border-radius: 16px; background: #fff; }
@@ -350,6 +353,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   .comparison-table { min-width: 520px; }
   .confirm-bar { align-items: flex-start; flex-direction: column; }
   .confirm-bar .button { width: 100%; }
+  .confirm-actions { width: 100%; flex-direction: column-reverse; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
   .stat-grid article:last-child { display: none; }
   .toolbar { align-items: flex-start; flex-direction: column; }

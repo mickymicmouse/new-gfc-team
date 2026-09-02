@@ -296,5 +296,17 @@ export const saveMatch = async ({
   return matchId
 }
 
+export const deleteMatch = async (matchId: string, adminPin: string) => {
+  const { data, error } = await createAdminClient(adminPin)
+    .from('matches')
+    .delete()
+    .eq('id', matchId)
+    .select('id')
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) throw new Error('삭제할 저장된 팀을 찾지 못했습니다.')
+}
+
 export const participantLabel = (participant: Participant) =>
   isGuest(participant) ? `${participant.name} (게스트)` : participant.name

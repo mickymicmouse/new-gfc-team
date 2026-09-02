@@ -25,7 +25,7 @@ import { AbilityBars } from './components/AbilityBars'
 import { AdminLogin } from './components/AdminLogin'
 import { GuestForm } from './components/GuestForm'
 import { PlayerForm, type PlayerFormValue } from './components/PlayerForm'
-import { addPlayer, fetchMatchByDate, fetchPlayers, saveMatch, setPlayerActive, updatePlayer, verifyAdminPin } from './lib/api'
+import { addPlayer, deleteMatch, fetchMatchByDate, fetchPlayers, saveMatch, setPlayerActive, updatePlayer, verifyAdminPin } from './lib/api'
 import { isSupabaseConfigured } from './lib/supabase'
 import { createBalancedTeams, getTeamMetrics } from './lib/teamBalancer'
 import {
@@ -78,6 +78,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [matchLoading, setMatchLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deletingMatch, setDeletingMatch] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [matchLoadError, setMatchLoadError] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastState | null>(null)
@@ -286,6 +287,32 @@ function App() {
     }
   }
 
+  const deleteSavedMatch = async () => {
+    if (!draft.id) return
+    if (!adminPin) {
+      setAdminLoginOpen(true)
+      notify('error', '저장된 팀을 삭제하려면 관리자 PIN이 필요합니다.')
+      return
+    }
+    if (!window.confirm(`${draft.matchDate} 저장된 팀을 삭제할까요?\n삭제한 기록은 복구할 수 없습니다.`)) return
+
+    setDeletingMatch(true)
+    try {
+      await deleteMatch(draft.id, adminPin)
+      const matchDate = draft.matchDate
+      setDraft({ ...initialDraft, matchDate })
+      setAttendingIds(new Set())
+      setGuests([])
+      setAssignments([])
+      notify('success', `${matchDate} 저장된 팀을 삭제했습니다.`)
+      navigate('attendance')
+    } catch (error) {
+      notify('error', error instanceof Error ? error.message : '저장된 팀을 삭제하지 못했습니다.')
+    } finally {
+      setDeletingMatch(false)
+    }
+  }
+
   const navigate = (next: AppView) => {
     setView(next)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -357,11 +384,13 @@ function App() {
             assignments={assignments}
             draft={draft}
             saving={saving}
+            deleting={deletingMatch}
             onDraftChange={(next) => { setDraft(next); setAssignments([]) }}
             onGenerate={generateTeams}
             onChangeTeam={changeManualTeam}
             onResetManual={resetManualTeams}
             onConfirm={confirmTeams}
+            onDelete={deleteSavedMatch}
             onBack={() => navigate('attendance')}
           />
         )}
@@ -482,11 +511,13 @@ interface TeamsViewProps {
   assignments: TeamAssignment[]
   draft: MatchDraft
   saving: boolean
+  deleting: boolean
   onDraftChange: (draft: MatchDraft) => void
   onGenerate: () => void
   onChangeTeam: (id: string, team: number) => void
   onResetManual: () => void
   onConfirm: () => void
+  onDelete: () => void
   onBack: () => void
 }
 
@@ -516,7 +547,7 @@ function TeamsView(props: TeamsViewProps) {
         </article>
       })}</section>
       <section className="comparison-card"><div className="comparison-card__heading"><div><p className="eyebrow">TEAM AVERAGE</p><h2>팀 평균 비교</h2></div><span>차이가 작을수록 균형적인 편성이에요</span></div><div className="comparison-table"><div className="comparison-row comparison-row--head"><span>능력치</span>{metrics.map((metric) => <strong key={metric.team}>TEAM {metric.team}</strong>)}<em>최대 차이</em></div>{ABILITIES.map((ability) => { const values = metrics.map(({ averages }) => averages[ability]); const spread = Math.max(...values) - Math.min(...values); return <div className="comparison-row" key={ability}><span>{ABILITY_LABELS[ability]}</span>{values.map((value, index) => <strong key={metrics[index].team}>{value.toFixed(2)}</strong>)}<em className={spread <= 0.35 ? 'spread-good' : spread <= 0.7 ? 'spread-mid' : 'spread-high'}>{spread.toFixed(2)}</em></div>})}</div></section>
-      <div className="confirm-bar"><div><ShieldCheck size={22} /><span><strong>{draft.status === 'confirmed' ? '편성 확정 완료' : '수동 조정 후 바로 확정할 수 있어요'}</strong><small>확정하면 현재 명단과 팀 정보가 저장됩니다.</small></span></div><button className="button button--primary button--large" onClick={props.onConfirm} disabled={props.saving}>{props.saving ? <><LoaderCircle className="spin" size={18} /> 저장 중…</> : <><Check size={18} /> {draft.status === 'confirmed' ? '변경사항 저장' : '이 편성으로 확정'}</>}</button></div>
+      <div className="confirm-bar"><div><ShieldCheck size={22} /><span><strong>{draft.status === 'confirmed' ? '편성 확정 완료' : '수동 조정 후 바로 확정할 수 있어요'}</strong><small>확정하면 현재 명단과 팀 정보가 저장됩니다.</small></span></div><span className="confirm-actions">{draft.id && <button className="button button--danger button--large" onClick={props.onDelete} disabled={props.deleting || props.saving}>{props.deleting ? <><LoaderCircle className="spin" size={18} /> 삭제 중…</> : <><Trash2 size={18} /> 저장된 팀 삭제</>}</button>}<button className="button button--primary button--large" onClick={props.onConfirm} disabled={props.saving || props.deleting}>{props.saving ? <><LoaderCircle className="spin" size={18} /> 저장 중…</> : <><Check size={18} /> {draft.status === 'confirmed' ? '변경사항 저장' : '이 편성으로 확정'}</>}</button></span></div>
     </>}
   </>
 }
