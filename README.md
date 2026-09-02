@@ -5,7 +5,7 @@ GFC 정규 멤버와 게스트의 참석 여부를 관리하고, 능력치에 �
 ## 배포
 
 - 운영 웹앱: https://new-gfc-team-mickymicmouse-3949.vercel.app/
-- `main` 브랜치 변경 시 Vercel 프로덕션 배포가 실행됩니다.
+- Vercel 프로젝트는 GitHub `main` 브랜치와 연결되어 있으며 변경 시 프로덕션 배포가 실행됩니다.
 
 ## 현재 기능
 
