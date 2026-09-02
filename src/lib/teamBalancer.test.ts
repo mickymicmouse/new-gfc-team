@@ -43,4 +43,16 @@ describe('createBalancedTeams', () => {
       first.map(({ participant }) => participant.id),
     )
   })
+
+  it('keeps decimal ability scores in team metrics', () => {
+    const decimalParticipants = participants.slice(0, 2).map((participant, index) => ({
+      ...participant,
+      defense: index === 0 ? 2.8 : 4.1,
+    }))
+
+    const result = createBalancedTeams(decimalParticipants, { ...options, teamCount: 2 })
+    const defenseAverages = getTeamMetrics(result, 2).map(({ averages }) => averages.defense)
+
+    expect(defenseAverages.sort()).toEqual([2.8, 4.1])
+  })
 })

@@ -14,7 +14,7 @@ export function AbilityBars({ participant, compact = false }: AbilityBarsProps) 
           <span className="ability__track" aria-label={`${ABILITY_LABELS[ability]} ${participant[ability]}점`}>
             <span style={{ width: `${participant[ability] * 20}%` }} />
           </span>
-          <strong>{participant[ability]}</strong>
+          <strong>{participant[ability].toFixed(1)}</strong>
         </div>
       ))}
     </div>

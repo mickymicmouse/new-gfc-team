@@ -42,8 +42,8 @@ export function GuestForm({ onClose, onSubmit }: GuestFormProps) {
             {ABILITIES.map((ability) => (
               <label key={ability}>
                 <span>{ABILITY_LABELS[ability]}</span>
-                <input type="range" min="1" max="5" value={scores[ability]} onChange={(event) => setScores((current) => ({ ...current, [ability]: Number(event.target.value) }))} />
-                <strong>{scores[ability]}</strong>
+                <input type="range" min="1" max="5" step="0.1" value={scores[ability]} onChange={(event) => setScores((current) => ({ ...current, [ability]: Number(event.target.value) }))} />
+                <strong>{scores[ability].toFixed(1)}</strong>
               </label>
             ))}
           </fieldset>

@@ -84,11 +84,11 @@ export function PlayerForm({ player, onClose, onSubmit }: PlayerFormProps) {
                   type="range"
                   min="1"
                   max="5"
-                  step="1"
+                  step="0.1"
                   value={scores[ability]}
                   onChange={(event) => setScores((current) => ({ ...current, [ability]: Number(event.target.value) }))}
                 />
-                <strong>{scores[ability]}</strong>
+                <strong>{scores[ability].toFixed(1)}</strong>
               </label>
             ))}
           </fieldset>
