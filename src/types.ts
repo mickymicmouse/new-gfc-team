@@ -2,7 +2,7 @@ export const ABILITIES = ['defense', 'passing', 'shooting', 'control', 'activity
 
 export type Ability = (typeof ABILITIES)[number]
 export type BalanceMode = 'random' | 'overall' | 'specific'
-export type AppView = 'attendance' | 'teams' | 'players'
+export type AppView = 'attendance' | 'teams' | 'players' | 'guide'
 
 export const ABILITY_LABELS: Record<Ability, string> = {
   defense: '수비',

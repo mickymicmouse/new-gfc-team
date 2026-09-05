@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight,
+  BookOpen,
   CalendarDays,
   Check,
   ChevronRight,
@@ -24,6 +25,7 @@ import {
 import { AbilityBars } from './components/AbilityBars'
 import { AdminLogin } from './components/AdminLogin'
 import { GuestForm } from './components/GuestForm'
+import { GuideView } from './components/GuideView'
 import { PlayerForm, type PlayerFormValue } from './components/PlayerForm'
 import { addPlayer, deleteMatch, fetchMatchByDate, fetchPlayers, saveMatch, setPlayerActive, updatePlayer, verifyAdminPin } from './lib/api'
 import { isSupabaseConfigured } from './lib/supabase'
@@ -418,6 +420,14 @@ function App() {
             onRestore={restorePlayer}
           />
         )}
+        {view === 'guide' && (
+          <GuideView
+            isAdmin={Boolean(adminPin)}
+            onStart={() => navigate('attendance')}
+            onOpenPlayers={() => navigate('players')}
+            onRequestAdmin={() => setAdminLoginOpen(true)}
+          />
+        )}
       </main>
 
       <nav className="mobile-nav" aria-label="주요 메뉴"><Navigation view={view} onNavigate={navigate} /></nav>
@@ -447,6 +457,7 @@ function Navigation({ view, onNavigate }: NavigationProps) {
     { id: 'attendance' as const, label: '이번 주', icon: CalendarDays },
     { id: 'teams' as const, label: '팀 편성', icon: Trophy },
     { id: 'players' as const, label: '선수 DB', icon: Users },
+    { id: 'guide' as const, label: '가이드', icon: BookOpen },
   ]
   return <div className="nav-list">{items.map(({ id, label, icon: Icon }) => <button className={view === id ? 'nav-item nav-item--active' : 'nav-item'} key={id} onClick={() => onNavigate(id)}><Icon size={19} /><span>{label}</span>{view === id && <ChevronRight className="nav-chevron" size={16} />}</button>)}</div>
 }
