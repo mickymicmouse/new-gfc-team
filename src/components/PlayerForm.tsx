@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import {
   ABILITIES,
   ABILITY_LABELS,
+  formatScore,
   type AbilityScores,
   type Player,
 } from '../types'
@@ -84,11 +85,11 @@ export function PlayerForm({ player, onClose, onSubmit }: PlayerFormProps) {
                   type="range"
                   min="1"
                   max="5"
-                  step="0.1"
+                  step="0.01"
                   value={scores[ability]}
                   onChange={(event) => setScores((current) => ({ ...current, [ability]: Number(event.target.value) }))}
                 />
-                <strong>{scores[ability].toFixed(1)}</strong>
+                <strong>{formatScore(scores[ability])}</strong>
               </label>
             ))}
           </fieldset>

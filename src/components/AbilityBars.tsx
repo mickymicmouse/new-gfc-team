@@ -1,4 +1,4 @@
-import { ABILITIES, ABILITY_LABELS, type Participant } from '../types'
+import { ABILITIES, ABILITY_LABELS, formatScore, type Participant } from '../types'
 
 interface AbilityBarsProps {
   participant: Participant
@@ -14,7 +14,7 @@ export function AbilityBars({ participant, compact = false }: AbilityBarsProps) 
           <span className="ability__track" aria-label={`${ABILITY_LABELS[ability]} ${participant[ability]}점`}>
             <span style={{ width: `${participant[ability] * 20}%` }} />
           </span>
-          <strong>{participant[ability].toFixed(1)}</strong>
+          <strong>{formatScore(participant[ability])}</strong>
         </div>
       ))}
     </div>

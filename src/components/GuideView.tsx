@@ -1,10 +1,12 @@
 import {
   ArrowRight,
+  BookOpen,
   CalendarDays,
   Check,
   Database,
   Dices,
   Info,
+  History,
   KeyRound,
   ListOrdered,
   LockKeyhole,
@@ -132,7 +134,7 @@ export function GuideView({ isAdmin, onStart, onOpenPlayers, onRequestAdmin }: G
         <ol className="guide-ordered">
           <li><span>1</span><p><strong>선수 DB 열기</strong>현재 멤버와 종합 능력치를 조회합니다.</p></li>
           <li><span>2</span><p><strong>관리자 모드 시작</strong>새 선수 등록이나 기존 선수 수정을 누르면 PIN 입력창이 열립니다.</p></li>
-          <li><span>3</span><p><strong>능력치 입력</strong>수비·패스·슈팅·컨트롤·활동량을 1.0~5.0 사이에서 0.1 단위로 조정합니다.</p></li>
+          <li><span>3</span><p><strong>능력치 입력</strong>수비·패스·슈팅·컨트롤·활동량을 1.00~5.00 사이에서 0.01 단위로 조정합니다.</p></li>
           <li><span>4</span><p><strong>비활성화 활용</strong>탈퇴·장기 불참 선수는 삭제 대신 비활성화해 기록을 유지합니다.</p></li>
         </ol>
         <button className="button button--outline" onClick={onOpenPlayers}>선수 DB 열기 <ArrowRight size={16} /></button>
@@ -147,6 +149,15 @@ export function GuideView({ isAdmin, onStart, onOpenPlayers, onRequestAdmin }: G
           <li><span>!</span><p><strong>삭제는 복구할 수 없습니다</strong>저장된 팀 삭제는 해당 날짜의 참석자·게스트·팀 편성을 함께 지웁니다.</p></li>
         </ol>
       </article>
+    </section>
+
+    <section className="guide-section">
+      <div className="guide-heading"><div><p className="eyebrow">UPDATE HISTORY</p><h2>업데이트 내역</h2></div><span>주요 변경사항을 날짜별로 기록합니다</span></div>
+      <div className="update-history">
+        <article><time dateTime="2026-09-07">2026.09.07</time><span><History size={17} /></span><div><h3>선수 DB 입력과 중복 방지 개선</h3><p>능력치를 소수점 둘째 자리까지 입력·표시하고, 정식 멤버 이름과 활성 등번호 중복 방지 및 게스트 기록 자동 연결을 추가했습니다.</p></div></article>
+        <article><time dateTime="2026-09-05">2026.09.05</time><span><BookOpen size={17} /></span><div><h3>사용자 가이드 추가</h3><p>경기 준비, 팀 편성, 로테이션, 관리자 권한과 저장 경기 관리 방법을 한 페이지에 정리했습니다.</p></div></article>
+        <article><time dateTime="2026-09-02">2026.09.02</time><span><ListOrdered size={17} /></span><div><h3>저장 경기와 로테이션 기능 보강</h3><p>경기 날짜별 팀 불러오기, 로테이션 순서 저장, 저장된 팀 삭제 기능을 추가했습니다.</p></div></article>
+      </div>
     </section>
 
     <section className="guide-finish">

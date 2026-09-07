@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { UserRoundPlus, X } from 'lucide-react'
-import { ABILITIES, ABILITY_LABELS, type AbilityScores, type Guest } from '../types'
+import { ABILITIES, ABILITY_LABELS, formatScore, type AbilityScores, type Guest } from '../types'
 
 interface GuestFormProps {
   onClose: () => void
@@ -42,8 +42,8 @@ export function GuestForm({ onClose, onSubmit }: GuestFormProps) {
             {ABILITIES.map((ability) => (
               <label key={ability}>
                 <span>{ABILITY_LABELS[ability]}</span>
-                <input type="range" min="1" max="5" step="0.1" value={scores[ability]} onChange={(event) => setScores((current) => ({ ...current, [ability]: Number(event.target.value) }))} />
-                <strong>{scores[ability].toFixed(1)}</strong>
+                <input type="range" min="1" max="5" step="0.01" value={scores[ability]} onChange={(event) => setScores((current) => ({ ...current, [ability]: Number(event.target.value) }))} />
+                <strong>{formatScore(scores[ability])}</strong>
               </label>
             ))}
           </fieldset>

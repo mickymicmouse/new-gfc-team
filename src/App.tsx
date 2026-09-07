@@ -33,7 +33,9 @@ import { createBalancedTeams, getTeamMetrics, normalizeRotationOrders, reorderTe
 import {
   ABILITIES,
   ABILITY_LABELS,
+  formatScore,
   isGuest,
+  normalizePlayerName,
   overallScore,
   type AppView,
   type Guest,
@@ -179,6 +181,26 @@ function App() {
   }
 
   const addGuest = (guest: Guest) => {
+    const matchingPlayer = activePlayers.find(
+      ({ name }) => normalizePlayerName(name) === normalizePlayerName(guest.name),
+    )
+    if (matchingPlayer) {
+      invalidateTeams()
+      setAttendingIds((current) => new Set(current).add(matchingPlayer.id))
+      notify('success', `${matchingPlayer.name}님은 정식 멤버로 참석 처리했습니다.`)
+      return
+    }
+    if (guests.some(({ name }) => normalizePlayerName(name) === normalizePlayerName(guest.name))) {
+      notify('error', '같은 이름의 게스트가 이미 추가되어 있습니다.')
+      return
+    }
+    if (guest.jersey_number !== null && [
+      ...activePlayers.map(({ jersey_number }) => jersey_number),
+      ...guests.map(({ jersey_number }) => jersey_number),
+    ].includes(guest.jersey_number)) {
+      notify('error', '이미 사용 중인 등번호입니다. 다른 등번호를 입력해 주세요.')
+      return
+    }
     invalidateTeams()
     setGuests((current) => [...current, guest])
   }
@@ -194,15 +216,34 @@ function App() {
       throw new Error('관리자 모드가 필요합니다.')
     }
     try {
-      if (playerForm && playerForm !== 'new') {
-        const saved = await updatePlayer(playerForm.id, value, adminPin)
-        setPlayers((current) => current.map((player) => (player.id === saved.id ? saved : player)))
-        notify('success', `${saved.name} 선수 정보를 수정했습니다.`)
-      } else {
-        const saved = await addPlayer(value, adminPin)
-        setPlayers((current) => [...current, saved].sort((left, right) => (left.jersey_number ?? 999) - (right.jersey_number ?? 999)))
-        notify('success', `${saved.name} 선수를 등록했습니다.`)
+      const saved = playerForm && playerForm !== 'new'
+        ? await updatePlayer(playerForm.id, value, adminPin)
+        : await addPlayer(value, adminPin)
+      const convertedGuestIds = new Set(
+        guests
+          .filter(({ name }) => normalizePlayerName(name) === normalizePlayerName(saved.name))
+          .map(({ id }) => id),
+      )
+
+      setPlayers((current) => {
+        const next = current.some(({ id }) => id === saved.id)
+          ? current.map((player) => (player.id === saved.id ? saved : player))
+          : [...current, saved]
+        return next.sort((left, right) =>
+          (left.jersey_number ?? 999) - (right.jersey_number ?? 999)
+          || left.name.localeCompare(right.name, 'ko'),
+        )
+      })
+      if (convertedGuestIds.size > 0) {
+        setGuests((current) => current.filter(({ id }) => !convertedGuestIds.has(id)))
+        setAttendingIds((current) => new Set(current).add(saved.id))
+        setAssignments((current) => current.map((assignment) =>
+          convertedGuestIds.has(assignment.participant.id)
+            ? { ...assignment, participant: saved }
+            : assignment,
+        ))
       }
+      notify('success', `${saved.name} 선수 정보를 저장했습니다.`)
     } catch (error) {
       notify('error', error instanceof Error ? error.message : '선수 정보를 저장하지 못했습니다.')
       throw error
@@ -500,14 +541,14 @@ function AttendanceView(props: AttendanceViewProps) {
       {loading ? <LoadingState /> : error ? <ErrorState message={error} onReload={props.onReload} /> : <div className="attendance-grid">{players.map((player) => {
         const selected = attendingIds.has(player.id)
         return <button className={selected ? 'attendance-card attendance-card--selected' : 'attendance-card'} key={player.id} onClick={() => props.onToggle(player.id)} aria-pressed={selected}>
-          <span className="jersey-badge">{player.jersey_number ?? '–'}</span><span className="attendance-card__name"><strong>{player.name}</strong><small>종합 {overallScore(player).toFixed(1)}</small></span><span className="check-circle">{selected && <Check size={16} strokeWidth={3} />}</span>
+          <span className="jersey-badge">{player.jersey_number ?? '–'}</span><span className="attendance-card__name"><strong>{player.name}</strong><small>종합 {formatScore(overallScore(player))}</small></span><span className="check-circle">{selected && <Check size={16} strokeWidth={3} />}</span>
         </button>
       })}</div>}
     </section>
 
     <section className="section-block">
       <div className="section-heading"><div><p className="eyebrow">GUEST PLAYERS</p><h2>게스트 <span>{guests.length}명</span></h2></div><button className="button button--small button--outline" onClick={props.onAddGuest}><UserRoundPlus size={16} /> 게스트 추가</button></div>
-      {guests.length === 0 ? <button className="empty-guest" onClick={props.onAddGuest}><Plus size={22} /><span><strong>게스트가 있나요?</strong><small>이름과 임시 능력치를 입력해 바로 편성할 수 있어요.</small></span></button> : <div className="guest-list">{guests.map((guest) => <div className="guest-row" key={guest.id}><span className="jersey-badge jersey-badge--guest">G</span><div><strong>{guest.name}</strong><small>종합 {overallScore(guest).toFixed(1)} · 게스트</small></div><button className="icon-button icon-button--danger" onClick={() => props.onRemoveGuest(guest.id)} aria-label={`${guest.name} 삭제`}><Trash2 size={17} /></button></div>)}</div>}
+      {guests.length === 0 ? <button className="empty-guest" onClick={props.onAddGuest}><Plus size={22} /><span><strong>게스트가 있나요?</strong><small>이름과 임시 능력치를 입력해 바로 편성할 수 있어요.</small></span></button> : <div className="guest-list">{guests.map((guest) => <div className="guest-row" key={guest.id}><span className="jersey-badge jersey-badge--guest">G</span><div><strong>{guest.name}</strong><small>종합 {formatScore(overallScore(guest))} · 게스트</small></div><button className="icon-button icon-button--danger" onClick={() => props.onRemoveGuest(guest.id)} aria-label={`${guest.name} 삭제`}><Trash2 size={17} /></button></div>)}</div>}
     </section>
     {assignments.length > 0 && <SavedTeamPreview assignments={assignments} teamCount={draft.options.teamCount} isSaved={draft.status === 'confirmed'} onViewTeams={props.onViewTeams} />}
     <div className="sticky-action"><div><span>현재 참석</span><strong>{attendingCount}명</strong></div><button className="button button--primary button--large" onClick={props.onContinue} disabled={attendingCount < 4}>팀 편성으로 <ArrowRight size={18} /></button></div>
@@ -563,8 +604,8 @@ function TeamsView(props: TeamsViewProps) {
         const teamAssignments = assignments.filter(({ team }) => team === metric.team).sort((left, right) => left.rotationOrder - right.rotationOrder)
         return <article className={`team-card team-card--${index + 1}`} key={metric.team}>
           <header className="team-card__header"><div><span>TEAM {metric.team}</span><h3>{TEAM_NAMES[index]}</h3></div><div className="team-score"><small>팀 종합</small><strong>{metric.overall.toFixed(2)}</strong></div></header>
-          <div className="metric-strip">{ABILITIES.map((ability) => <span key={ability}><small>{ABILITY_LABELS[ability]}</small><strong>{metric.averages[ability].toFixed(1)}</strong></span>)}</div>
-          <div className="team-roster">{teamAssignments.map(({ participant, autoTeam, team, rotationOrder }) => <div className={team !== autoTeam ? 'team-player team-player--manual' : 'team-player'} key={participant.id}><span className="rotation-badge">{String.fromCharCode(64 + team)}{rotationOrder}</span><div className="team-player__info"><strong>{participant.name}{isGuest(participant) && <em>GUEST</em>}</strong><small>{participant.jersey_number !== null ? `등번호 ${participant.jersey_number} · ` : ''}종합 {overallScore(participant).toFixed(1)}{team !== autoTeam && ' · 수동 이동'}</small></div><div className="assignment-controls"><label aria-label={`${participant.name} 팀 변경`}><span>팀</span><select value={team} onChange={(event) => props.onChangeTeam(participant.id, Number(event.target.value))}>{Array.from({ length: draft.options.teamCount }, (_, teamIndex) => <option value={teamIndex + 1} key={teamIndex + 1}>{String.fromCharCode(65 + teamIndex)}</option>)}</select></label><label aria-label={`${participant.name} 로테이션 순서 변경`}><span>순서</span><select value={rotationOrder} onChange={(event) => props.onChangeRotationOrder(participant.id, Number(event.target.value))}>{teamAssignments.map((_, orderIndex) => <option value={orderIndex + 1} key={orderIndex + 1}>{orderIndex + 1}</option>)}</select></label></div></div>)}</div>
+          <div className="metric-strip">{ABILITIES.map((ability) => <span key={ability}><small>{ABILITY_LABELS[ability]}</small><strong>{formatScore(metric.averages[ability])}</strong></span>)}</div>
+          <div className="team-roster">{teamAssignments.map(({ participant, autoTeam, team, rotationOrder }) => <div className={team !== autoTeam ? 'team-player team-player--manual' : 'team-player'} key={participant.id}><span className="rotation-badge">{String.fromCharCode(64 + team)}{rotationOrder}</span><div className="team-player__info"><strong>{participant.name}{isGuest(participant) && <em>GUEST</em>}</strong><small>{participant.jersey_number !== null ? `등번호 ${participant.jersey_number} · ` : ''}종합 {formatScore(overallScore(participant))}{team !== autoTeam && ' · 수동 이동'}</small></div><div className="assignment-controls"><label aria-label={`${participant.name} 팀 변경`}><span>팀</span><select value={team} onChange={(event) => props.onChangeTeam(participant.id, Number(event.target.value))}>{Array.from({ length: draft.options.teamCount }, (_, teamIndex) => <option value={teamIndex + 1} key={teamIndex + 1}>{String.fromCharCode(65 + teamIndex)}</option>)}</select></label><label aria-label={`${participant.name} 로테이션 순서 변경`}><span>순서</span><select value={rotationOrder} onChange={(event) => props.onChangeRotationOrder(participant.id, Number(event.target.value))}>{teamAssignments.map((_, orderIndex) => <option value={orderIndex + 1} key={orderIndex + 1}>{orderIndex + 1}</option>)}</select></label></div></div>)}</div>
           <footer>{metric.size} PLAYERS</footer>
         </article>
       })}</section>
@@ -597,7 +638,7 @@ function PlayersView(props: PlayersViewProps) {
     <PageHeader eyebrow="PLAYER DATABASE" title="선수 DB" description="정규 멤버의 등번호와 5개 능력치를 관리합니다." action={<div className="header-actions">{!props.isAdmin && <button className="button button--outline" onClick={props.onRequestAdmin}><LockKeyhole size={16} /> 관리자</button>}<button className="button button--primary" onClick={props.onAdd}><Plus size={17} /> 새 선수</button></div>} />
     <div className="stat-grid"><article><span className="stat-icon"><Users size={21} /></span><div><small>활성 선수</small><strong>{activeCount}<em>명</em></strong></div></article><article><span className="stat-icon stat-icon--orange"><Sparkles size={21} /></span><div><small>평균 종합</small><strong>{teamAverage.toFixed(2)}</strong></div></article><article><span className="stat-icon stat-icon--navy"><Trophy size={21} /></span><div><small>등록 등번호</small><strong>{props.players.filter(({ is_active, jersey_number }) => is_active && jersey_number !== null).length}<em>개</em></strong></div></article></div>
     <div className="toolbar"><label className="search-field"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="선수 이름 검색" /></label><label className="switch"><input type="checkbox" checked={showInactive} onChange={(event) => setShowInactive(event.target.checked)} /><span /> 비활성 포함</label></div>
-    {props.loading ? <LoadingState /> : props.error ? <ErrorState message={props.error} onReload={props.onReload} /> : <div className="player-database">{filtered.map((player) => <article className={!player.is_active ? 'database-card database-card--inactive' : 'database-card'} key={player.id}><header><span className="jersey-large">{player.jersey_number ?? '–'}</span><div><h3>{player.name}</h3><p>{player.is_active ? 'ACTIVE PLAYER' : 'INACTIVE'}</p></div><span className="overall-badge"><small>종합</small><strong>{overallScore(player).toFixed(1)}</strong></span></header><AbilityBars participant={player} /><footer><button onClick={() => props.onEdit(player)}><Pencil size={15} /> 수정</button>{player.is_active ? <button className="danger-link" onClick={() => void props.onArchive(player)}><Trash2 size={15} /> 비활성화</button> : <button onClick={() => void props.onRestore(player)}><RotateCcw size={15} /> 활성화</button>}</footer></article>)}</div>}
+    {props.loading ? <LoadingState /> : props.error ? <ErrorState message={props.error} onReload={props.onReload} /> : <div className="player-database">{filtered.map((player) => <article className={!player.is_active ? 'database-card database-card--inactive' : 'database-card'} key={player.id}><header><span className="jersey-large">{player.jersey_number ?? '–'}</span><div><h3>{player.name}</h3><p>{player.is_active ? 'ACTIVE PLAYER' : 'INACTIVE'}</p></div><span className="overall-badge"><small>종합</small><strong>{formatScore(overallScore(player))}</strong></span></header><AbilityBars participant={player} /><footer><button onClick={() => props.onEdit(player)}><Pencil size={15} /> 수정</button>{player.is_active ? <button className="danger-link" onClick={() => void props.onArchive(player)}><Trash2 size={15} /> 비활성화</button> : <button onClick={() => void props.onRestore(player)}><RotateCcw size={15} /> 활성화</button>}</footer></article>)}</div>}
     {!props.loading && !props.error && filtered.length === 0 && <div className="empty-state"><Search size={30} /><h2>검색 결과가 없습니다</h2><p>다른 이름으로 검색해보세요.</p></div>}
   </>
 }

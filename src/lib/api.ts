@@ -7,7 +7,7 @@ import type {
   StoredMatchState,
   TeamAssignment,
 } from '../types'
-import { isGuest } from '../types'
+import { isGuest, normalizePlayerName } from '../types'
 
 type PlayerInput = Omit<Player, 'id' | 'created_at' | 'updated_at'>
 
@@ -31,8 +31,19 @@ export const fetchPlayers = async (adminPin?: string) => {
 }
 
 export const addPlayer = async (player: PlayerInput, adminPin: string) => {
-  const { data, error } = await createAdminClient(adminPin).from('players').insert(player).select().single()
-  if (error) throw error
+  const adminClient = createAdminClient(adminPin)
+  const { data: players, error: lookupError } = await adminClient.from('players').select('*')
+  if (lookupError) throw lookupError
+
+  const existing = (players as Player[]).find(
+    ({ name }) => normalizePlayerName(name) === normalizePlayerName(player.name),
+  )
+  if (existing) {
+    return updatePlayer(existing.id, { ...player, is_active: true }, adminPin)
+  }
+
+  const { data, error } = await adminClient.from('players').insert(player).select().single()
+  if (error) throw friendlyPlayerError(error)
   return data as Player
 }
 
@@ -44,7 +55,7 @@ export const updatePlayer = async (id: string, player: PlayerInput, adminPin: st
     .select()
     .single()
 
-  if (error) throw error
+  if (error) throw friendlyPlayerError(error)
   return data as Player
 }
 
@@ -56,8 +67,16 @@ export const setPlayerActive = async (id: string, isActive: boolean, adminPin: s
     .select()
     .single()
 
-  if (error) throw error
+  if (error) throw friendlyPlayerError(error)
   return data as Player
+}
+
+const friendlyPlayerError = (error: { code?: string; message: string }) => {
+  if (error.code !== '23505') return error
+  if (error.message.includes('players_active_jersey_number_key')) {
+    return new Error('이미 사용 중인 등번호입니다. 다른 등번호를 입력해 주세요.')
+  }
+  return new Error('같은 이름의 선수가 이미 등록되어 있습니다.')
 }
 
 interface StoredMatchPlayerRow {

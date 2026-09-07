@@ -72,3 +72,7 @@ export const isGuest = (participant: Participant): participant is Guest =>
 
 export const overallScore = (participant: Participant) =>
   ABILITIES.reduce((total, key) => total + participant[key], 0) / ABILITIES.length
+
+export const formatScore = (score: number) => score.toFixed(2)
+
+export const normalizePlayerName = (name: string) => name.trim().toLocaleLowerCase('ko-KR')
