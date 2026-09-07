@@ -28,6 +28,7 @@ import { GuestForm } from './components/GuestForm'
 import { GuideView } from './components/GuideView'
 import { PlayerForm, type PlayerFormValue } from './components/PlayerForm'
 import { addPlayer, deleteMatch, fetchMatchByDate, fetchPlayers, saveMatch, setPlayerActive, updatePlayer, verifyAdminPin } from './lib/api'
+import { buildNavigationSearch, readNavigationState } from './lib/navigationState'
 import { isSupabaseConfigured } from './lib/supabase'
 import { createBalancedTeams, getTeamMetrics, normalizeRotationOrders, reorderTeamMember } from './lib/teamBalancer'
 import {
@@ -53,9 +54,14 @@ const todayInKorea = () =>
     day: '2-digit',
   }).format(new Date())
 
+const initialNavigation = readNavigationState(
+  typeof window === 'undefined' ? '' : window.location.search,
+  todayInKorea(),
+)
+
 const initialDraft: MatchDraft = {
   title: 'GFC 정기 풋살',
-  matchDate: todayInKorea(),
+  matchDate: initialNavigation.matchDate,
   status: 'draft',
   options: {
     teamCount: 3,
@@ -73,7 +79,7 @@ interface ToastState {
 }
 
 function App() {
-  const [view, setView] = useState<AppView>('attendance')
+  const [view, setView] = useState<AppView>(initialNavigation.view)
   const [players, setPlayers] = useState<Player[]>([])
   const [attendingIds, setAttendingIds] = useState<Set<string>>(new Set())
   const [guests, setGuests] = useState<Guest[]>([])
@@ -112,6 +118,15 @@ function App() {
   useEffect(() => {
     void loadPlayers()
   }, [loadPlayers])
+
+  useEffect(() => {
+    const search = buildNavigationSearch(window.location.search, view, draft.matchDate)
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${search}${window.location.hash}`,
+    )
+  }, [view, draft.matchDate])
 
   useEffect(() => {
     let cancelled = false
@@ -217,7 +232,7 @@ function App() {
     }
     try {
       const saved = playerForm && playerForm !== 'new'
-        ? await updatePlayer(playerForm.id, value, adminPin)
+        ? await updatePlayer(playerForm.id, value, adminPin, playerForm.updated_at)
         : await addPlayer(value, adminPin)
       const convertedGuestIds = new Set(
         guests

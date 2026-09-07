@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import {
-  ABILITIES,
-  ABILITY_LABELS,
-  formatScore,
-  type AbilityScores,
-  type Player,
-} from '../types'
+import { pickAbilityScores, type AbilityScores, type Player } from '../types'
+import { AbilityScoreFields } from './AbilityScoreFields'
 
 export type PlayerFormValue = Omit<Player, 'id' | 'created_at' | 'updated_at'>
 
@@ -27,7 +22,9 @@ const initialScores: AbilityScores = {
 export function PlayerForm({ player, onClose, onSubmit }: PlayerFormProps) {
   const [name, setName] = useState(player?.name ?? '')
   const [jerseyNumber, setJerseyNumber] = useState(player?.jersey_number?.toString() ?? '')
-  const [scores, setScores] = useState<AbilityScores>(player ?? initialScores)
+  const [scores, setScores] = useState<AbilityScores>(() =>
+    pickAbilityScores(player ?? initialScores),
+  )
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -42,10 +39,10 @@ export function PlayerForm({ player, onClose, onSubmit }: PlayerFormProps) {
     setSaving(true)
     try {
       await onSubmit({
+        ...scores,
         name: name.trim(),
         jersey_number: jerseyNumber === '' ? null : Number(jerseyNumber),
         is_active: player?.is_active ?? true,
-        ...scores,
       })
       onClose()
     } finally {
@@ -76,23 +73,7 @@ export function PlayerForm({ player, onClose, onSubmit }: PlayerFormProps) {
             </label>
           </div>
 
-          <fieldset className="score-fields">
-            <legend>능력치</legend>
-            {ABILITIES.map((ability) => (
-              <label key={ability}>
-                <span>{ABILITY_LABELS[ability]}</span>
-                <input
-                  type="range"
-                  min="1"
-                  max="5"
-                  step="0.01"
-                  value={scores[ability]}
-                  onChange={(event) => setScores((current) => ({ ...current, [ability]: Number(event.target.value) }))}
-                />
-                <strong>{formatScore(scores[ability])}</strong>
-              </label>
-            ))}
-          </fieldset>
+          <AbilityScoreFields legend="능력치" scores={scores} onChange={setScores} />
 
           <footer className="modal__footer">
             <button className="button button--ghost" type="button" onClick={onClose}>취소</button>

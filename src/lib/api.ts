@@ -7,7 +7,7 @@ import type {
   StoredMatchState,
   TeamAssignment,
 } from '../types'
-import { isGuest, normalizePlayerName } from '../types'
+import { isGuest, normalizePlayerName, pickAbilityScores } from '../types'
 
 type PlayerInput = Omit<Player, 'id' | 'created_at' | 'updated_at'>
 
@@ -47,15 +47,31 @@ export const addPlayer = async (player: PlayerInput, adminPin: string) => {
   return data as Player
 }
 
-export const updatePlayer = async (id: string, player: PlayerInput, adminPin: string) => {
-  const { data, error } = await createAdminClient(adminPin)
+export const updatePlayer = async (
+  id: string,
+  player: PlayerInput,
+  adminPin: string,
+  expectedUpdatedAt?: string,
+) => {
+  let query = createAdminClient(adminPin)
     .from('players')
-    .update({ ...player, updated_at: new Date().toISOString() })
+    .update({
+      ...pickAbilityScores(player),
+      name: player.name,
+      jersey_number: player.jersey_number,
+      is_active: player.is_active,
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', id)
+
+  if (expectedUpdatedAt) query = query.eq('updated_at', expectedUpdatedAt)
+
+  const { data, error } = await query
     .select()
-    .single()
+    .maybeSingle()
 
   if (error) throw friendlyPlayerError(error)
+  if (!data) throw new Error('다른 곳에서 먼저 수정된 선수입니다. 목록을 새로고침한 뒤 다시 시도해 주세요.')
   return data as Player
 }
 

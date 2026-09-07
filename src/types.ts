@@ -75,4 +75,12 @@ export const overallScore = (participant: Participant) =>
 
 export const formatScore = (score: number) => score.toFixed(2)
 
+export const pickAbilityScores = (scores: AbilityScores): AbilityScores => ({
+  defense: scores.defense,
+  passing: scores.passing,
+  shooting: scores.shooting,
+  control: scores.control,
+  activity: scores.activity,
+})
+
 export const normalizePlayerName = (name: string) => name.trim().toLocaleLowerCase('ko-KR')

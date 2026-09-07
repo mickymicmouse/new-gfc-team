@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { UserRoundPlus, X } from 'lucide-react'
-import { ABILITIES, ABILITY_LABELS, formatScore, type AbilityScores, type Guest } from '../types'
+import { type AbilityScores, type Guest } from '../types'
+import { AbilityScoreFields } from './AbilityScoreFields'
 
 interface GuestFormProps {
   onClose: () => void
@@ -37,16 +38,7 @@ export function GuestForm({ onClose, onSubmit }: GuestFormProps) {
             <label><span>이름</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="게스트 이름" autoFocus required /></label>
             <label className="jersey-input"><span>등번호</span><input type="number" min="0" max="999" value={jerseyNumber} onChange={(event) => setJerseyNumber(event.target.value)} placeholder="선택" /></label>
           </div>
-          <fieldset className="score-fields">
-            <legend>임시 능력치</legend>
-            {ABILITIES.map((ability) => (
-              <label key={ability}>
-                <span>{ABILITY_LABELS[ability]}</span>
-                <input type="range" min="1" max="5" step="0.01" value={scores[ability]} onChange={(event) => setScores((current) => ({ ...current, [ability]: Number(event.target.value) }))} />
-                <strong>{formatScore(scores[ability])}</strong>
-              </label>
-            ))}
-          </fieldset>
+          <AbilityScoreFields legend="임시 능력치" scores={scores} onChange={setScores} />
           <footer className="modal__footer"><button className="button button--ghost" type="button" onClick={onClose}>취소</button><button className="button button--primary" type="submit" disabled={!name.trim()}>게스트 추가</button></footer>
         </form>
       </section>

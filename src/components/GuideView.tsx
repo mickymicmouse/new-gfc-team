@@ -154,7 +154,7 @@ export function GuideView({ isAdmin, onStart, onOpenPlayers, onRequestAdmin }: G
     <section className="guide-section">
       <div className="guide-heading"><div><p className="eyebrow">UPDATE HISTORY</p><h2>업데이트 내역</h2></div><span>주요 변경사항을 날짜별로 기록합니다</span></div>
       <div className="update-history">
-        <article><time dateTime="2026-09-07">2026.09.07</time><span><History size={17} /></span><div><h3>선수 DB 입력과 중복 방지 개선</h3><p>능력치를 소수점 둘째 자리까지 입력·표시하고, 정식 멤버 이름과 활성 등번호 중복 방지 및 게스트 기록 자동 연결을 추가했습니다.</p></div></article>
+        <article><time dateTime="2026-09-07">2026.09.07</time><span><History size={17} /></span><div><h3>선수 수정과 화면 상태 유지 개선</h3><p>등번호 저장 오류를 수정하고 능력치 숫자 직접 입력, 정식 멤버 중복 방지, 게스트 기록 자동 연결, 현재 탭·경기 날짜 유지를 추가했습니다.</p></div></article>
         <article><time dateTime="2026-09-05">2026.09.05</time><span><BookOpen size={17} /></span><div><h3>사용자 가이드 추가</h3><p>경기 준비, 팀 편성, 로테이션, 관리자 권한과 저장 경기 관리 방법을 한 페이지에 정리했습니다.</p></div></article>
         <article><time dateTime="2026-09-02">2026.09.02</time><span><ListOrdered size={17} /></span><div><h3>저장 경기와 로테이션 기능 보강</h3><p>경기 날짜별 팀 불러오기, 로테이션 순서 저장, 저장된 팀 삭제 기능을 추가했습니다.</p></div></article>
       </div>
