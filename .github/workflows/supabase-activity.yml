@@ -24,5 +24,4 @@ jobs:
             --data-urlencode 'select=id' \
             --data-urlencode 'limit=1' \
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
             -o /dev/null
