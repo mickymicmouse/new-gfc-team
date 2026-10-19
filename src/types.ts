@@ -1,13 +1,13 @@
-export const ABILITIES = ['defense', 'passing', 'shooting', 'control', 'activity'] as const
+export const ABILITIES = ['shooting', 'defense', 'passing', 'control', 'activity'] as const
 
 export type Ability = (typeof ABILITIES)[number]
 export type BalanceMode = 'random' | 'overall' | 'specific'
 export type AppView = 'attendance' | 'teams' | 'players' | 'guide'
 
 export const ABILITY_LABELS: Record<Ability, string> = {
+  shooting: '공격',
   defense: '수비',
   passing: '패스',
-  shooting: '슈팅',
   control: '컨트롤',
   activity: '활동량',
 }
