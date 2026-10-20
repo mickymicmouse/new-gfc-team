@@ -72,6 +72,11 @@ const initialDraft: MatchDraft = {
 }
 
 const TEAM_NAMES = ['GREEN', 'ORANGE', 'NAVY']
+const shiftMatchDate = (date: string, days: number) => {
+  const next = new Date(`${date}T00:00:00Z`)
+  next.setUTCDate(next.getUTCDate() + days)
+  return next.toISOString().slice(0, 10)
+}
 
 interface ToastState {
   kind: 'success' | 'error'
@@ -471,8 +476,13 @@ function App() {
             draft={draft}
             saving={saving}
             generating={generating}
+            matchLoading={matchLoading}
+            matchError={matchLoadError}
             deleting={deletingMatch}
-            onDraftChange={(next) => { setDraft(next); setAssignments([]) }}
+            onDraftChange={(next) => {
+              if (next.matchDate !== draft.matchDate) updateAttendanceDraft(next)
+              else { setDraft(next); setAssignments([]) }
+            }}
             onGenerate={generateTeams}
             onChangeTeam={changeManualTeam}
             onChangeRotationOrder={changeRotationOrder}
@@ -609,6 +619,8 @@ interface TeamsViewProps {
   draft: MatchDraft
   saving: boolean
   generating: boolean
+  matchLoading: boolean
+  matchError: string | null
   deleting: boolean
   onDraftChange: (draft: MatchDraft) => void
   onGenerate: () => void
@@ -629,14 +641,23 @@ function TeamsView(props: TeamsViewProps) {
   const setOptions = (options: MatchDraft['options']) => props.onDraftChange({ ...draft, options, status: 'draft' })
   return <>
     <PageHeader eyebrow="TEAM BALANCER" title="팀 편성" description="편성 결과를 확인하고 팀과 로테이션 순서를 조정하세요." />
+    <section className="team-date-nav" aria-label="경기 날짜 이동">
+      <div><small>선택한 경기 날짜</small><strong>{draft.matchDate}{draft.id && !props.matchLoading ? ' · 저장된 경기' : ''}</strong></div>
+      <div className="team-date-nav__controls">
+        <button className="icon-button" type="button" aria-label="이전 날짜" onClick={() => props.onDraftChange({ ...draft, matchDate: shiftMatchDate(draft.matchDate, -1) })}>−</button>
+        <input type="date" aria-label="팀 편성 경기 날짜" value={draft.matchDate} onChange={(event) => props.onDraftChange({ ...draft, matchDate: event.target.value })} />
+        <button className="icon-button" type="button" aria-label="다음 날짜" onClick={() => props.onDraftChange({ ...draft, matchDate: shiftMatchDate(draft.matchDate, 1) })}>＋</button>
+      </div>
+    </section>
+    {props.matchError && <div className="match-load-error"><CircleAlert size={15} /> {props.matchError}</div>}
     <section className="control-panel">
       <div className="control-group"><span className="control-label">팀 개수</span><div className="segmented">{([2, 3] as const).map((count) => <button className={draft.options.teamCount === count ? 'active' : ''} key={count} onClick={() => setOptions({ ...draft.options, teamCount: count })}>{count}팀</button>)}</div></div>
       <div className="control-group control-group--wide"><span className="control-label">편성 기준</span><div className="mode-options"><button className={draft.options.balanceMode === 'overall' ? 'mode-card mode-card--active' : 'mode-card'} onClick={() => setOptions({ ...draft.options, balanceMode: 'overall' })}><ShieldCheck size={19} /><span><strong>종합 균형</strong><small>5개 능력치 전체</small></span></button><button className={draft.options.balanceMode === 'specific' ? 'mode-card mode-card--active' : 'mode-card'} onClick={() => setOptions({ ...draft.options, balanceMode: 'specific' })}><Sparkles size={19} /><span><strong>특정 능력</strong><small>선택 능력치 우선</small></span></button><button className={draft.options.balanceMode === 'random' ? 'mode-card mode-card--active' : 'mode-card'} onClick={() => setOptions({ ...draft.options, balanceMode: 'random' })}><Dices size={19} /><span><strong>랜덤</strong><small>순수 무작위</small></span></button></div></div>
       {draft.options.balanceMode === 'specific' && <div className="control-group control-group--full"><span className="control-label">우선 능력치</span><div className="ability-pills">{ABILITIES.map((ability) => <button className={draft.options.specificAbility === ability ? 'active' : ''} key={ability} onClick={() => setOptions({ ...draft.options, specificAbility: ability })}>{ABILITY_LABELS[ability]}</button>)}</div></div>}
-      <div className="seed-control"><span><small>재편성 번호</small><strong>#{draft.options.seed}</strong></span><button className="icon-button" onClick={() => setOptions({ ...draft.options, seed: Math.max(1, draft.options.seed - 1) })}>−</button><button className="icon-button" onClick={() => setOptions({ ...draft.options, seed: draft.options.seed + 1 })}>＋</button><button className="button button--primary" onClick={props.onGenerate} disabled={props.generating}><RefreshCw size={17} /> {props.generating ? '편성 중…' : assignments.length ? '다시 편성' : '자동 편성'}</button></div>
+      <div className="seed-control"><span><small>재편성 번호</small><strong>#{draft.options.seed}</strong></span><button className="icon-button" onClick={() => setOptions({ ...draft.options, seed: Math.max(1, draft.options.seed - 1) })}>−</button><button className="icon-button" onClick={() => setOptions({ ...draft.options, seed: draft.options.seed + 1 })}>＋</button><button className="button button--primary" onClick={props.onGenerate} disabled={props.generating || props.matchLoading}><RefreshCw size={17} /> {props.generating ? '편성 중…' : assignments.length ? '다시 편성' : '자동 편성'}</button></div>
     </section>
 
-    {participants.length < draft.options.teamCount * 2 ? <div className="empty-state"><Users size={32} /><h2>참석 인원이 부족해요</h2><p>{draft.options.teamCount}팀은 최소 {draft.options.teamCount * 2}명이 필요합니다. 현재 {participants.length}명이 선택됐어요.</p><button className="button button--outline" onClick={props.onBack}>참석자 선택으로</button></div> : assignments.length === 0 ? <div className="empty-state empty-state--pitch"><Dices size={34} /><h2>편성 준비 완료</h2><p>{participants.length}명을 {draft.options.teamCount}개 팀으로 나눕니다.<br />위 옵션을 확인하고 자동 편성을 눌러주세요.</p><button className="button button--primary" onClick={props.onGenerate}><Sparkles size={17} /> 자동 편성 시작</button></div> : <>
+    {props.matchLoading ? <LoadingState /> : participants.length < draft.options.teamCount * 2 ? <div className="empty-state"><Users size={32} /><h2>참석 인원이 부족해요</h2><p>{draft.options.teamCount}팀은 최소 {draft.options.teamCount * 2}명이 필요합니다. 현재 {participants.length}명이 선택됐어요.</p><button className="button button--outline" onClick={props.onBack}>참석자 선택으로</button></div> : assignments.length === 0 ? <div className="empty-state empty-state--pitch"><Dices size={34} /><h2>편성 준비 완료</h2><p>{participants.length}명을 {draft.options.teamCount}개 팀으로 나눕니다.<br />위 옵션을 확인하고 자동 편성을 눌러주세요.</p><button className="button button--primary" onClick={props.onGenerate}><Sparkles size={17} /> 자동 편성 시작</button></div> : <>
       <div className="result-heading"><div><p className="eyebrow">BALANCED RESULT</p><h2>편성 결과 <span>{participants.length}명</span></h2>{range && <p>참석자 평균 {formatScore(range.center)} · 자동 허용 범위 {formatScore(range.center - range.allowance)}~{formatScore(range.center + range.allowance)} · 현재 최대 편차 {formatScore(range.deviation)}</p>}</div>{manualCount > 0 && <button className="button button--small button--ghost" onClick={props.onResetManual}><RotateCcw size={15} /> 수동 조정 {manualCount}건 취소</button>}</div>
       <section className={`teams-grid teams-grid--${draft.options.teamCount}`}>{metrics.map((metric, index) => {
         const teamAssignments = assignments.filter(({ team }) => team === metric.team).sort((left, right) => left.rotationOrder - right.rotationOrder)

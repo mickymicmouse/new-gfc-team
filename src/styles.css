@@ -145,6 +145,12 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .saved-team > div > span { min-height: 28px; padding: 5px 8px 5px 5px; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; color: #4c5a52; background: #f4f6f3; font-size: 10px; font-weight: 600; }
 .saved-team > div b { min-width: 25px; height: 19px; padding: 0 4px; display: grid; place-items: center; border-radius: 5px; color: var(--green-900); background: #e3ece7; font: 700 8px/1 'DM Sans'; }
 
+.team-date-nav { margin-bottom: 14px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid var(--border); border-radius: 14px; background: #fff; }
+.team-date-nav small, .team-date-nav strong { display: block; }
+.team-date-nav small { margin-bottom: 5px; color: #718078; font-size: 10px; font-weight: 700; }
+.team-date-nav strong { color: var(--green-900); font-size: 15px; }
+.team-date-nav__controls { display: flex; align-items: center; gap: 7px; }
+.team-date-nav__controls input { height: 38px; min-width: 145px; padding: 0 9px; border: 1px solid var(--border); border-radius: 9px; background: #fff; color: var(--green-900); font: inherit; font-size: 12px; }
 .control-panel { padding: 25px; display: grid; grid-template-columns: 170px 1fr; gap: 24px 28px; border: 1px solid var(--border); border-radius: 19px; background: #fff; box-shadow: var(--shadow); }
 .control-group { display: grid; align-content: start; gap: 10px; }
 .control-group--full { grid-column: 1 / -1; }
@@ -446,6 +452,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   .attendance-card { min-height: 65px; padding: 10px; gap: 8px; }
   .jersey-badge { flex-basis: 32px; width: 32px; height: 32px; }
   .control-panel { grid-template-columns: 1fr; gap: 20px; padding: 19px; }
+  .team-date-nav { flex-wrap: wrap; padding: 14px; }
   .control-group--full, .seed-control { grid-column: 1; }
   .mode-options { grid-template-columns: 1fr; }
   .mode-card { min-height: 52px; }
