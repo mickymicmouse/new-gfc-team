@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight,
   BookOpen,
@@ -27,10 +27,10 @@ import { AdminLogin } from './components/AdminLogin'
 import { GuestForm } from './components/GuestForm'
 import { GuideView } from './components/GuideView'
 import { PlayerForm, type PlayerFormValue } from './components/PlayerForm'
-import { addPlayer, deleteMatch, fetchMatchByDate, fetchPlayers, saveMatch, setPlayerActive, updatePlayer, verifyAdminPin } from './lib/api'
+import { addPlayer, deleteMatch, fetchMatchByDate, fetchPlayers, fetchPreviousTeams, saveMatch, setPlayerActive, updatePlayer, verifyAdminPin } from './lib/api'
 import { buildNavigationSearch, readNavigationState } from './lib/navigationState'
 import { isSupabaseConfigured } from './lib/supabase'
-import { createBalancedTeams, getTeamMetrics, normalizeRotationOrders, reorderTeamMember } from './lib/teamBalancer'
+import { createBalancedTeams, getOverallRange, getTeamMetrics, normalizeRotationOrders, reorderTeamMember } from './lib/teamBalancer'
 import {
   ABILITIES,
   ABILITY_LABELS,
@@ -88,6 +88,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [matchLoading, setMatchLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [deletingMatch, setDeletingMatch] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [matchLoadError, setMatchLoadError] = useState<string | null>(null)
@@ -96,6 +97,7 @@ function App() {
   const [guestFormOpen, setGuestFormOpen] = useState(false)
   const [adminLoginOpen, setAdminLoginOpen] = useState(false)
   const [adminPin, setAdminPin] = useState<string | null>(null)
+  const generationId = useRef(0)
 
   const notify = useCallback((kind: ToastState['kind'], message: string) => {
     setToast({ kind, message })
@@ -130,6 +132,7 @@ function App() {
 
   useEffect(() => {
     let cancelled = false
+    generationId.current += 1
     const matchDate = draft.matchDate
     setMatchLoading(true)
     setMatchLoadError(null)
@@ -292,14 +295,30 @@ function App() {
     }
   }
 
-  const generateTeams = () => {
+  const generateTeams = async () => {
     if (participants.length < draft.options.teamCount * 2) {
       notify('error', `${draft.options.teamCount}팀 편성에는 최소 ${draft.options.teamCount * 2}명이 필요합니다.`)
       return
     }
-    setAssignments(createBalancedTeams(participants, draft.options))
-    setDraft((current) => ({ ...current, status: 'draft' }))
-    notify('success', `재편성 ${draft.options.seed}번 조합을 만들었습니다.`)
+    if (generating) return
+    setGenerating(true)
+    const requestId = ++generationId.current
+    try {
+      const previous = draft.options.balanceMode === 'overall' ? await fetchPreviousTeams(draft.matchDate) : []
+      if (requestId !== generationId.current) return
+      const result = createBalancedTeams(participants, draft.options, previous)
+      setAssignments(result)
+      setDraft((current) => ({ ...current, status: 'draft' }))
+      const range = draft.options.balanceMode === 'overall'
+        ? getOverallRange(participants, result, draft.options.teamCount) : null
+      notify('success', range
+        ? `재편성 #${draft.options.seed} · 팀 평균 ${formatScore(range.center)} ±${formatScore(range.allowance)} · 최근 ${previous.length}회 반영`
+        : `재편성 ${draft.options.seed}번 조합을 만들었습니다.`)
+    } catch (error) {
+      if (requestId === generationId.current) notify('error', error instanceof Error ? error.message : '최근 편성 기록을 불러오지 못했습니다.')
+    } finally {
+      setGenerating(false)
+    }
   }
 
   const changeManualTeam = (id: string, team: number) => {
@@ -451,6 +470,7 @@ function App() {
             assignments={assignments}
             draft={draft}
             saving={saving}
+            generating={generating}
             deleting={deletingMatch}
             onDraftChange={(next) => { setDraft(next); setAssignments([]) }}
             onGenerate={generateTeams}
@@ -588,6 +608,7 @@ interface TeamsViewProps {
   assignments: TeamAssignment[]
   draft: MatchDraft
   saving: boolean
+  generating: boolean
   deleting: boolean
   onDraftChange: (draft: MatchDraft) => void
   onGenerate: () => void
@@ -602,6 +623,8 @@ interface TeamsViewProps {
 function TeamsView(props: TeamsViewProps) {
   const { draft, assignments, participants } = props
   const metrics = getTeamMetrics(assignments, draft.options.teamCount)
+  const range = assignments.length && draft.options.balanceMode === 'overall'
+    ? getOverallRange(participants, assignments, draft.options.teamCount) : null
   const manualCount = assignments.filter(({ team, autoTeam }) => team !== autoTeam).length
   const setOptions = (options: MatchDraft['options']) => props.onDraftChange({ ...draft, options, status: 'draft' })
   return <>
@@ -610,11 +633,11 @@ function TeamsView(props: TeamsViewProps) {
       <div className="control-group"><span className="control-label">팀 개수</span><div className="segmented">{([2, 3] as const).map((count) => <button className={draft.options.teamCount === count ? 'active' : ''} key={count} onClick={() => setOptions({ ...draft.options, teamCount: count })}>{count}팀</button>)}</div></div>
       <div className="control-group control-group--wide"><span className="control-label">편성 기준</span><div className="mode-options"><button className={draft.options.balanceMode === 'overall' ? 'mode-card mode-card--active' : 'mode-card'} onClick={() => setOptions({ ...draft.options, balanceMode: 'overall' })}><ShieldCheck size={19} /><span><strong>종합 균형</strong><small>5개 능력치 전체</small></span></button><button className={draft.options.balanceMode === 'specific' ? 'mode-card mode-card--active' : 'mode-card'} onClick={() => setOptions({ ...draft.options, balanceMode: 'specific' })}><Sparkles size={19} /><span><strong>특정 능력</strong><small>선택 능력치 우선</small></span></button><button className={draft.options.balanceMode === 'random' ? 'mode-card mode-card--active' : 'mode-card'} onClick={() => setOptions({ ...draft.options, balanceMode: 'random' })}><Dices size={19} /><span><strong>랜덤</strong><small>순수 무작위</small></span></button></div></div>
       {draft.options.balanceMode === 'specific' && <div className="control-group control-group--full"><span className="control-label">우선 능력치</span><div className="ability-pills">{ABILITIES.map((ability) => <button className={draft.options.specificAbility === ability ? 'active' : ''} key={ability} onClick={() => setOptions({ ...draft.options, specificAbility: ability })}>{ABILITY_LABELS[ability]}</button>)}</div></div>}
-      <div className="seed-control"><span><small>재편성 번호</small><strong>#{draft.options.seed}</strong></span><button className="icon-button" onClick={() => setOptions({ ...draft.options, seed: Math.max(1, draft.options.seed - 1) })}>−</button><button className="icon-button" onClick={() => setOptions({ ...draft.options, seed: draft.options.seed + 1 })}>＋</button><button className="button button--primary" onClick={props.onGenerate}><RefreshCw size={17} /> {assignments.length ? '다시 편성' : '자동 편성'}</button></div>
+      <div className="seed-control"><span><small>재편성 번호</small><strong>#{draft.options.seed}</strong></span><button className="icon-button" onClick={() => setOptions({ ...draft.options, seed: Math.max(1, draft.options.seed - 1) })}>−</button><button className="icon-button" onClick={() => setOptions({ ...draft.options, seed: draft.options.seed + 1 })}>＋</button><button className="button button--primary" onClick={props.onGenerate} disabled={props.generating}><RefreshCw size={17} /> {props.generating ? '편성 중…' : assignments.length ? '다시 편성' : '자동 편성'}</button></div>
     </section>
 
     {participants.length < draft.options.teamCount * 2 ? <div className="empty-state"><Users size={32} /><h2>참석 인원이 부족해요</h2><p>{draft.options.teamCount}팀은 최소 {draft.options.teamCount * 2}명이 필요합니다. 현재 {participants.length}명이 선택됐어요.</p><button className="button button--outline" onClick={props.onBack}>참석자 선택으로</button></div> : assignments.length === 0 ? <div className="empty-state empty-state--pitch"><Dices size={34} /><h2>편성 준비 완료</h2><p>{participants.length}명을 {draft.options.teamCount}개 팀으로 나눕니다.<br />위 옵션을 확인하고 자동 편성을 눌러주세요.</p><button className="button button--primary" onClick={props.onGenerate}><Sparkles size={17} /> 자동 편성 시작</button></div> : <>
-      <div className="result-heading"><div><p className="eyebrow">BALANCED RESULT</p><h2>편성 결과 <span>{participants.length}명</span></h2></div>{manualCount > 0 && <button className="button button--small button--ghost" onClick={props.onResetManual}><RotateCcw size={15} /> 수동 조정 {manualCount}건 취소</button>}</div>
+      <div className="result-heading"><div><p className="eyebrow">BALANCED RESULT</p><h2>편성 결과 <span>{participants.length}명</span></h2>{range && <p>참석자 평균 {formatScore(range.center)} · 자동 허용 범위 {formatScore(range.center - range.allowance)}~{formatScore(range.center + range.allowance)} · 현재 최대 편차 {formatScore(range.deviation)}</p>}</div>{manualCount > 0 && <button className="button button--small button--ghost" onClick={props.onResetManual}><RotateCcw size={15} /> 수동 조정 {manualCount}건 취소</button>}</div>
       <section className={`teams-grid teams-grid--${draft.options.teamCount}`}>{metrics.map((metric, index) => {
         const teamAssignments = assignments.filter(({ team }) => team === metric.team).sort((left, right) => left.rotationOrder - right.rotationOrder)
         return <article className={`team-card team-card--${index + 1}`} key={metric.team}>

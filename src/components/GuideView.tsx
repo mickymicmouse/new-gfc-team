@@ -57,7 +57,7 @@ const permissions = [
 ] as const
 
 const balanceModes = [
-  { icon: ShieldCheck, title: '종합 균형', description: '수비·패스·슈팅·컨트롤·활동량을 함께 비교해 팀 차이를 줄입니다.' },
+  { icon: ShieldCheck, title: '종합 균형', description: '참석자 평균 ±0.2점 안에서 최근 두 번 같은 팀이었던 선수 조합을 줄입니다. 필요하면 범위가 자동으로 넓어집니다.' },
   { icon: Sparkles, title: '특정 능력', description: '선택한 능력치를 더 중요하게 반영하면서 전체 균형도 함께 맞춥니다.' },
   { icon: Dices, title: '랜덤', description: '능력치 계산 없이 참석자를 무작위로 나눕니다.' },
 ]

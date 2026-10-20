@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Participant, TeamOptions } from '../types'
-import { createBalancedTeams, getTeamMetrics, reorderTeamMember } from './teamBalancer'
+import { createBalancedTeams, getOverallRange, getTeamMetrics, reorderTeamMember } from './teamBalancer'
 
 const participants: Participant[] = Array.from({ length: 17 }, (_, index) => ({
   id: String(index),
@@ -34,6 +34,24 @@ describe('createBalancedTeams', () => {
     expect(second.map(({ participant, team }) => [participant.id, team])).toEqual(
       first.map(({ participant, team }) => [participant.id, team]),
     )
+  })
+
+  it('keeps every team within the participant average range', () => {
+    const result = createBalancedTeams(participants, options)
+    const range = getOverallRange(participants, result, options.teamCount)
+    expect(range.allowance).toBe(0.2)
+    expect(range.deviation).toBeLessThanOrEqual(range.allowance + 1e-9)
+  })
+
+  it('avoids recent teammate pairs when balanced alternatives exist', () => {
+    const equal = participants.slice(0, 6).map((player) => ({
+      ...player, shooting: 3, defense: 3, passing: 3, control: 3, activity: 3,
+    }))
+    const previous = [{ date: '2026-10-12', teams: [['0', '1', '2'], ['3', '4', '5']] }]
+    const result = createBalancedTeams(equal, { ...options, teamCount: 2 }, previous)
+    const groups = [1, 2].map((team) => result.filter((item) => item.team === team).map((item) => item.participant.id))
+    expect(groups.every((group) => Math.max(group.filter((id) => previous[0].teams[0].includes(id)).length,
+      group.filter((id) => previous[0].teams[1].includes(id)).length) <= 2)).toBe(true)
   })
 
   it('changes random teams when the seed changes', () => {

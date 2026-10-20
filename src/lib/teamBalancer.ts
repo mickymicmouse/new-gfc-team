@@ -1,10 +1,13 @@
 import {
   ABILITIES,
+  isGuest,
+  overallScore,
   type Ability,
   type Participant,
   type TeamAssignment,
   type TeamOptions,
 } from '../types'
+import type { PreviousTeam } from './api'
 
 const mulberry32 = (seed: number) => {
   let value = seed >>> 0
@@ -85,6 +88,93 @@ const randomAssignment = (participants: Participant[], options: TeamOptions) =>
     return { participant, team, autoTeam: team, rotationOrder: Math.floor(index / options.teamCount) + 1 }
   })
 
+export const DEFAULT_OVERALL_RANGE = 0.2
+
+export const getOverallRange = (participants: Participant[], assignments: TeamAssignment[], teamCount: number) => {
+  const center = participants.reduce((sum, player) => sum + overallScore(player), 0) / participants.length
+  const deviation = Math.max(...getTeamMetrics(assignments, teamCount).map(({ overall }) => Math.abs(overall - center)))
+  return { center, deviation, allowance: Math.max(DEFAULT_OVERALL_RANGE, Math.ceil((deviation - 1e-9) / 0.05) * 0.05) }
+}
+
+const createOverallTeams = (
+  participants: Participant[], options: TeamOptions, previousTeams: PreviousTeam[],
+): TeamAssignment[] => {
+  const random = mulberry32(options.seed)
+  const center = participants.reduce((sum, player) => sum + overallScore(player), 0) / participants.length
+  const scores = participants.map(overallScore)
+  const counts = Array.from({ length: options.teamCount }, (_, team) =>
+    Math.floor(participants.length / options.teamCount) + (team < participants.length % options.teamCount ? 1 : 0),
+  )
+  const pastPairs = new Map<string, number>()
+  previousTeams.slice(0, 2).forEach(({ teams }, index) => {
+    for (const team of teams) for (let left = 0; left < team.length; left += 1) {
+      for (let right = left + 1; right < team.length; right += 1) {
+        const key = [team[left], team[right]].sort().join(':')
+        pastPairs.set(key, (pastPairs.get(key) ?? 0) + (index === 0 ? 2 : 1))
+      }
+    }
+  })
+  const pairWeights = participants.map((left, i) => participants.map((right, j) =>
+    i === j || isGuest(left) || isGuest(right) ? 0
+      : pastPairs.get([left.id, right.id].sort().join(':')) ?? 0,
+  ))
+
+  const evaluate = (teams: number[]) => {
+    const totals = counts.map(() => 0)
+    teams.forEach((team, index) => { totals[team] += scores[index] })
+    const deviation = Math.max(...totals.map((total, index) => Math.abs(total / counts[index] - center)))
+    let repeats = 0
+    for (let left = 0; left < teams.length; left += 1) {
+      for (let right = left + 1; right < teams.length; right += 1) {
+        if (teams[left] === teams[right]) repeats += pairWeights[left][right]
+      }
+    }
+    return { deviation, repeats }
+  }
+
+  const candidates: { teams: number[]; deviation: number; repeats: number }[] = []
+  const slots = counts.flatMap((count, team) => Array.from({ length: count }, () => team))
+  // Explore independent starts; swap only across teams so sizes stay balanced.
+  for (let attempt = 0; attempt < 180; attempt += 1) {
+    const teams = shuffle(slots, Math.floor(random() * 0xffffffff))
+    let current = evaluate(teams)
+    for (let pass = 0; pass < 5; pass += 1) {
+      let best: { left: number; right: number; score: typeof current } | null = null
+      for (let left = 0; left < teams.length; left += 1) {
+        for (let right = left + 1; right < teams.length; right += 1) {
+          if (teams[left] === teams[right]) continue
+          ;[teams[left], teams[right]] = [teams[right], teams[left]]
+          const score = evaluate(teams)
+          ;[teams[left], teams[right]] = [teams[right], teams[left]]
+          const better = current.deviation > DEFAULT_OVERALL_RANGE + 1e-9
+            ? score.deviation < current.deviation - 1e-9
+            : score.deviation <= DEFAULT_OVERALL_RANGE + 1e-9 && score.repeats < current.repeats
+          if (better && (!best || (current.deviation > DEFAULT_OVERALL_RANGE + 1e-9
+            ? score.deviation < best.score.deviation - 1e-9
+            : score.repeats < best.score.repeats))) best = { left, right, score }
+        }
+      }
+      if (!best) break
+      ;[teams[best.left], teams[best.right]] = [teams[best.right], teams[best.left]]
+      current = best.score
+    }
+    candidates.push({ teams, ...current })
+  }
+
+  const minimum = Math.min(...candidates.map(({ deviation }) => deviation))
+  const allowance = Math.max(DEFAULT_OVERALL_RANGE, Math.ceil((minimum - 1e-9) / 0.05) * 0.05)
+  const eligible = candidates.filter(({ deviation }) => deviation <= allowance + 1e-9)
+  const fewestRepeats = Math.min(...eligible.map(({ repeats }) => repeats))
+  const finalists = eligible.filter(({ repeats }) => repeats === fewestRepeats)
+  const chosen = finalists[Math.floor(random() * finalists.length)]
+  return normalizeRotationOrders(participants.map((participant, index) => ({
+    participant,
+    team: chosen.teams[index] + 1,
+    autoTeam: chosen.teams[index] + 1,
+    rotationOrder: index + 1,
+  })))
+}
+
 export const normalizeRotationOrders = (assignments: TeamAssignment[]) => {
   const counters = new Map<number, number>()
   return [...assignments]
@@ -129,9 +219,11 @@ export const reorderTeamMember = (
 export const createBalancedTeams = (
   participants: Participant[],
   options: TeamOptions,
+  previousTeams: PreviousTeam[] = [],
 ): TeamAssignment[] => {
   if (participants.length === 0) return []
   if (options.balanceMode === 'random') return randomAssignment(participants, options)
+  if (options.balanceMode === 'overall') return createOverallTeams(participants, options, previousTeams)
 
   const weights = weightsFor(options)
   const random = mulberry32(options.seed)

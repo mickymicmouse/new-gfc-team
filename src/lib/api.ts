@@ -237,6 +237,41 @@ export const fetchMatchByDate = async (matchDate: string) => {
   return data ? mapStoredMatch(data as unknown as StoredMatchRow) : null
 }
 
+export interface PreviousTeam {
+  date: string
+  teams: string[][]
+}
+
+export const fetchPreviousTeams = async (matchDate: string): Promise<PreviousTeam[]> => {
+  const { data, error } = await supabase
+    .from('matches')
+    .select('match_date, match_players(player_id, attending, assigned_team, manual_team)')
+    .lt('match_date', matchDate)
+    .eq('status', 'confirmed')
+    .order('match_date', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(20)
+
+  if (error) throw error
+  const dates = new Set<string>()
+  const previous: PreviousTeam[] = []
+  for (const match of data ?? []) {
+    if (dates.has(match.match_date)) continue
+    dates.add(match.match_date)
+    const teams = new Map<number, string[]>()
+    for (const row of match.match_players ?? []) {
+      if (!row.attending || !row.player_id) continue
+      const team = row.manual_team ?? row.assigned_team
+      if (team === null) continue
+      teams.set(team, [...(teams.get(team) ?? []), row.player_id])
+    }
+    // A saved date without a team assignment does not count as a previous lineup.
+    if (teams.size) previous.push({ date: match.match_date, teams: [...teams.values()] })
+    if (previous.length === 2) break
+  }
+  return previous
+}
+
 interface SaveMatchInput {
   adminPin: string
   draft: MatchDraft
