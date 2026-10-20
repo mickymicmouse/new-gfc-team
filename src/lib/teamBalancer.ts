@@ -132,7 +132,14 @@ const createOverallTeams = (
     return { deviation, repeats }
   }
 
-  const candidates: { teams: number[]; deviation: number; repeats: number }[] = []
+  const abilitySpreadFor = (teams: number[]) => Math.max(...ABILITIES.map((ability) => {
+    const values = counts.map((count, team) =>
+      participants.reduce((sum, player, index) => sum + (teams[index] === team ? player[ability] : 0), 0) / count,
+    )
+    return Math.max(...values) - Math.min(...values)
+  }))
+
+  const candidates: { teams: number[]; deviation: number; repeats: number; abilitySpread: number }[] = []
   const slots = counts.flatMap((count, team) => Array.from({ length: count }, () => team))
   // Explore independent starts; swap only across teams so sizes stay balanced.
   for (let attempt = 0; attempt < 180; attempt += 1) {
@@ -158,7 +165,7 @@ const createOverallTeams = (
       ;[teams[best.left], teams[best.right]] = [teams[best.right], teams[best.left]]
       current = best.score
     }
-    candidates.push({ teams, ...current })
+    candidates.push({ teams, ...current, abilitySpread: abilitySpreadFor(teams) })
   }
 
   const minimum = Math.min(...candidates.map(({ deviation }) => deviation))
@@ -166,7 +173,12 @@ const createOverallTeams = (
   const eligible = candidates.filter(({ deviation }) => deviation <= allowance + 1e-9)
   const fewestRepeats = Math.min(...eligible.map(({ repeats }) => repeats))
   const finalists = eligible.filter(({ repeats }) => repeats === fewestRepeats)
-  const chosen = finalists[Math.floor(random() * finalists.length)]
+  // Preserve variety among equally novel lineups while avoiding a lopsided single ability.
+  const moderate = finalists.filter(({ abilitySpread }) => abilitySpread <= 0.7 + 1e-9)
+  const pool = moderate.length ? moderate : finalists.filter(({ abilitySpread }) =>
+    abilitySpread <= Math.min(...finalists.map((item) => item.abilitySpread)) + 0.05,
+  )
+  const chosen = pool[Math.floor(random() * pool.length)]
   return normalizeRotationOrders(participants.map((participant, index) => ({
     participant,
     team: chosen.teams[index] + 1,

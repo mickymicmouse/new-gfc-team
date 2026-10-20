@@ -54,6 +54,18 @@ describe('createBalancedTeams', () => {
       group.filter((id) => previous[0].teams[1].includes(id)).length) <= 2)).toBe(true)
   })
 
+  it('widens the range in 0.05 steps if the initial range is impossible', () => {
+    const uneven = participants.slice(0, 6).map((player, index) => ({
+      ...player, shooting: index === 0 ? 1 : 5, defense: index === 0 ? 1 : 5,
+      passing: index === 0 ? 1 : 5, control: index === 0 ? 1 : 5,
+      activity: index === 0 ? 1 : 5,
+    }))
+    const result = createBalancedTeams(uneven, { ...options, teamCount: 2 })
+    const range = getOverallRange(uneven, result, 2)
+    expect(range.allowance).toBeCloseTo(0.7)
+    expect(range.deviation).toBeLessThanOrEqual(range.allowance + 1e-9)
+  })
+
   it('changes random teams when the seed changes', () => {
     const first = createBalancedTeams(participants, { ...options, balanceMode: 'random', seed: 1 })
     const second = createBalancedTeams(participants, { ...options, balanceMode: 'random', seed: 2 })
